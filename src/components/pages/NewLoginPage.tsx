@@ -7,6 +7,7 @@ import { Separator } from "../ui/separator";
 import { Logo } from "../Logo";
 import { useRouter } from "../Router";
 import { ArrowRight, Mail } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export function NewLoginPage() {
   const [email, setEmail] = useState("");
@@ -15,72 +16,64 @@ export function NewLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { navigateTo, setUserRole } = useRouter();
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!accountType) {
-      alert("Please select your account type");
-      return;
-    }
-    
-    console.log("Login attempt:", { accountType, email });
-    
-    setIsLoading(true);
+const handleEmailLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    // Simulate login
-    setTimeout(() => {
-      // In production, this would validate credentials against the backend
-      // Store user data in localStorage for the dashboard to access
-      const userData = {
-        email: email,
-        accountType: accountType,
-        name: email.split('@')[0], // Use email prefix as name for demo
-      };
-      localStorage.setItem("onboardai_user", JSON.stringify(userData));
-      
-      console.log("Setting user role to:", accountType);
-      setUserRole(accountType);
-      
-      // Navigate to appropriate dashboard based on account type
-      const targetPage = accountType === "talent" ? "gpr-dashboard" : "dashboard";
-      console.log("Navigating to:", targetPage);
-      navigateTo(targetPage);
-      
-      setIsLoading(false);
-    }, 1500);
-  };
+  if (!accountType) {
+    alert("Please select your account type");
+    return;
+  }
 
-  const handleOAuthLogin = (provider: "google" | "linkedin") => {
-    if (!accountType) {
-      alert("Please select your account type first");
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    // In production, this would initiate OAuth flow
-    setTimeout(() => {
-      // Store demo user data in localStorage
-      const userData = {
-        email: `demo-${provider}@onboard.ai`,
-        accountType: accountType,
-        name: `Demo ${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-      };
-      localStorage.setItem("onboardai_user", JSON.stringify(userData));
-      
-      // Simulate successful OAuth login
-      setUserRole(accountType);
-      
-      // Navigate to appropriate dashboard
-      if (accountType === "talent") {
-        navigateTo("gpr-dashboard");
-      } else {
-        navigateTo("dashboard");
-      }
-      
-      setIsLoading(false);
-    }, 1500);
-  };
+  setIsLoading(true);
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    alert(error.message);
+    setIsLoading(false);
+    return;
+  }
+
+  // Store account type in metadata (optional later improvement)
+  setUserRole(accountType);
+
+  // Redirect based on role
+  if (accountType === "talent") {
+    navigateTo("gpr-dashboard");
+  } else {
+    navigateTo("dashboard");
+  }
+
+  setIsLoading(false);
+};
+
+const handleOAuthLogin = async (provider: "google" | "linkedin") => {
+  if (!accountType) {
+    alert("Please select your account type first");
+    return;
+  }
+
+  setIsLoading(true);
+
+  const actualProvider =
+    provider === "linkedin" ? "linkedin_oidc" : provider;
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: actualProvider,
+    options: {
+      redirectTo: window.location.origin,
+    },
+  });
+
+  if (error) {
+    alert(error.message);
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-600 via-indigo-700 to-violet-800 flex items-center justify-center p-4 relative overflow-hidden">
