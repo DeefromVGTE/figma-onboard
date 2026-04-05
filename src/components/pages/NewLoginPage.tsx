@@ -64,13 +64,19 @@ const handleOAuthLogin = async (provider: "google" | "linkedin") => {
   const { error } = await supabase.auth.signInWithOAuth({
     provider: actualProvider,
     options: {
-      redirectTo: window.location.origin,
+      redirectTo: window.location.origin, // redirect back to your app
     },
   });
 
   if (error) {
     alert(error.message);
     setIsLoading(false);
+  } else {
+    // Set the user role in your router
+    setUserRole(accountType);
+
+    // Navigate to the onboarding page (or dashboard if you want)
+    navigateTo("onboarding");
   }
 };
 

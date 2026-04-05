@@ -38,23 +38,58 @@ import { supabase } from "./lib/supabase";
 function AppContent() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [onboarding, setOnboarding] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const { currentPage, navigateTo, userRole } = useRouter();
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthLoading(false);
-    });
+useEffect(() => {
+  const initialize = async () => {
+    const { data } = await supabase.auth.getSession();
+    const currentSession = data.session;
+    setSession(currentSession);
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
+    if (currentSession?.user) {
+      const userId = currentSession.user.id;
+
+      // Fetch profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (!profileError) {
+        setProfile(profileData);
       }
-    );
 
-    return () => {
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+      // Fetch onboarding progress
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from("onboarding_progress")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (!onboardingError) {
+        setOnboarding(onboardingData);
+      }
+    }
+
+    setProfileLoading(false);
+    setAuthLoading(false);
+  };
+
+  initialize();
+
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    async (_event, session) => {
+      setSession(session);
+    }
+  );
+
+  return () => {
+    listener.subscription.unsubscribe();
+  };
+}, []);
 
     const publicPages = [
       "product",
@@ -69,11 +104,35 @@ function AppContent() {
       if (authLoading) {
         return <div className="p-10">Loading...</div>;
       }
+      if (session && profileLoading) {
+        return <div className="p-10">Loading profile...</div>;
+      }
 
       if (!session && !publicPages.includes(currentPage)) {
         navigateTo("login");
         return null;
       }
+      // If logged in, determine correct landing page
+if (session && profile && onboarding) {
+  if (onboarding.status !== "completed") {
+    if (currentPage !== "onboarding") {
+      navigateTo("onboarding");
+      return null;
+    }
+  } else {
+    if (profile.user_role === "recruiter") {
+      if (currentPage !== "dashboard") {
+        navigateTo("dashboard");
+        return null;
+      }
+    } else {
+      if (currentPage !== "gpr-dashboard") {
+        navigateTo("gpr-dashboard");
+        return null;
+      }
+    }
+  }
+}
 
       switch (currentPage) {
         case "product":
